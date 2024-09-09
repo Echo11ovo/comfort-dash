@@ -105,100 +105,95 @@ class StoreState:
             return store_data
 
         @app.callback(
-            [Output(id, "value") for id in self.persist_ids] + [Output("url", "href")],
-            [Input(id, "value") for id in self.persist_ids] + [Input("url", "href")],
+            [Output(id, "value") for id in self.persist_ids],
+            Input(store_id, "modified_timestamp"),
             State(store_id, "data"),
             prevent_initial_call=True,
         )
-        def manage_data_and_url(*args):
-            # Separate input parameters
-            input_values = args[:len(self.persist_ids)]
-            url = args[len(self.persist_ids)]
-            store_data = args[-1]
+        def load_data(modified_timestamp, store_data):
+            if modified_timestamp:
 
-            # Initialize the return values for input components, defaulting to no_update
-            output_values = [no_update] * len(self.persist_ids)
-            new_url = no_update
-
-            # Check if any events were triggered
-            if ctx.triggered:
-                triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
-
-                # Handle data storage and loading logic
                 if store_data is None:
                     store_data = {}
 
-                # If the triggered change is from input values
-                if triggered_id in self.persist_ids:
-                    store_data[triggered_id] = ctx.triggered[0]["value"]
+                # Get the current number of dynamic input components
+                num_outputs = len(ctx.outputs_list)
 
-                # If the triggered change is from URL
-                elif triggered_id == "url":
-                    parsed_url = StoreState.parse_url(url)
+                # Initialize the output list, defaulting to no_update
+                input_values = [no_update] * num_outputs
 
-                    # Parse URL path and query parameters
-                    path_parts = parsed_url.path_parts
-                    query_params = parsed_url.query_params
-
-                    # Update model and type based on the URL
-                    if len(path_parts) == 2:
-                        model = path_parts[0]
-                        type_part = path_parts[1]
-                        store_data["model"] = model
-                        store_data["type"] = type_part
-                    elif len(path_parts) == 1:
-                        model = path_parts[0]
-                        if model in ["single", "range", "compare"]:
-                            store_data["model"] = model
-                        else:
-                            store_data["model"] = None
-                        store_data["type"] = None
-
-                    # Store query parameters
-                    for key, value in query_params.items():
-                        store_data[key] = value[0]
-
-                # Load data into components
-                for i, key in enumerate(self.persist_ids):
-                    output_values[i] = store_data.get(key, no_update)
-
-                # Update the URL
-                url_tmp = store_data.get("url", None)
-                model_tmp = store_data.get("model", None)
-                type_tmp = store_data.get("type", None)
-
-                if url_tmp:
-                    url_match = re.match(r"^https?://[^/]+", url_tmp)
-                    if url_match:
-                        base_url = url_match.group(0)
-                    else:
-                        return output_values + [no_update]
-
-                    if model_tmp in ["single", "range"]:
-                        if not base_url.endswith("/"):
-                            base_url += "/"
-                        base_url += f"{model_tmp}?"
-                    elif model_tmp == "compare":
-                        if not base_url.endswith("/"):
-                            base_url += "/"
-                        base_url += f"{model_tmp}/{type_tmp}?"
-                    else:
-                        if not base_url.endswith("/"):
-                            base_url += "/"
-
-                    query_params = []
-                    processed_keys = set()
-
+                # If stored data exists, update the corresponding component values based on the indices
+                if store_data:
+                    # Iterate through the key-value pairs in the stored data
                     for key, value in store_data.items():
-                        if key not in ["url", "model", "compare"] and value is not None:
-                            if key not in processed_keys:
-                                query_params.append(f"{key}={value}")
-                                processed_keys.add(key)
+                        # Iterate through all the output components, matching the stored data indices
+                        for i, output in enumerate(ctx.outputs_list):
+                            # If the component's id matches the key in the stored data, update the component's value
+                            if output["id"] == key:
+                                input_values[i] = value
 
-                    full_url = base_url
-                    if query_params:
-                        full_url += "&".join(query_params)
+                return input_values
 
-                    new_url = full_url
+            # If modified_timestamp is empty or invalid, return a list with no_update
+            return [no_update] * len(ctx.outputs_list)
 
-            return output_values + [new_url]
+        # New feature, reflect to the URL
+        @app.callback(
+            Output("url", "href"),
+            [Input(id, "value") for id in self.persist_ids],
+            [Input("url", "href")],
+            State(store_id, "data"),
+            prevent_initial_call=True,
+        )
+        def update_url(*args):
+            *id, url, store_data = args
+
+            if ctx.triggered:
+                triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
+                if triggered_id == "url":
+                    return no_update
+
+                if store_data is not None:
+                    url_tmp = store_data.get("url", None)
+                    model_tmp = store_data.get("model", None)
+                    type_tmp = store_data.get("type", None)
+
+                    if url_tmp:
+                        url_match = re.match(r"^https?://[^/]+", url_tmp)
+                        if url_match:
+                            base_url = url_match.group(0)
+                        else:
+                            return no_update
+
+                        if model_tmp in ["single", "range"]:
+                            if not base_url.endswith("/"):
+                                base_url += "/"
+                            base_url += f"{model_tmp}?"
+                        elif model_tmp == "compare":
+                            if not base_url.endswith("/"):
+                                base_url += "/"
+                            base_url += f"{model_tmp}/{type_tmp}?"
+                        else:
+                            if not base_url.endswith("/"):
+                                base_url += "/"
+
+                        query_params = []
+                        processed_keys = set()
+
+                        for key, value in store_data.items():
+                            if key not in ["url", "model", "compare"] and value is not None:
+                                if key not in processed_keys:
+                                    query_params.append(f"{key}={value}")
+                                    processed_keys.add(key)
+
+                        full_url = base_url
+                        if query_params:
+                            full_url += "&".join(query_params)
+
+                        return full_url
+                    else:
+                        return no_update
+                else:
+                    return no_update
+
+            return no_update

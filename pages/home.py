@@ -28,18 +28,12 @@ dash._dash_renderer._set_react_version('18.2.0')
 app = dash.Dash(__name__)
 
 PERSIST_IDS = [
-    # ElementsIDs.t_db_input.value,
-    # ElementsIDs.t_r_input.value,
-    # ElementsIDs.v_input.value,
-    # ElementsIDs.rh_input.value,
-    # ElementsIDs.met_input.value,
-    # ElementsIDs.clo_input.value,
-    "id-dbt-input",
-    "id-tr-input",
-    "id-v-input",
-    "id-rh-input",
-    "id-met-input",
-    "id-clo-input",
+    ElementsIDs.t_db_input.value,
+    ElementsIDs.t_r_input.value,
+    ElementsIDs.v_input.value,
+    ElementsIDs.rh_input.value,
+    ElementsIDs.met_input.value,
+    ElementsIDs.clo_input.value,
 ]
 
 store_id = "input_environmental_personal"
@@ -98,43 +92,6 @@ layout = dmc.Stack(
         ),
     ]
 )
-
-
-# @callback(
-#     Output(MyStores.input_data.value, "data"),
-#     Input(ElementsIDs.inputs_form.value, "n_clicks"),
-#     Input(ElementsIDs.inputs_form.value, "children"),
-#     Input(ElementsIDs.clo_input.value, "value"),
-#     Input(ElementsIDs.met_input.value, "value"),
-#     Input(ElementsIDs.UNIT_TOGGLE.value, "checked"),
-#     Input(ElementsIDs.chart_selected.value, "value"),
-#     State(ElementsIDs.MODEL_SELECTION.value, "value"),
-# )
-# def update_store_inputs(
-#         form_clicks: int,
-#         form_content: dict,
-#         clo_value: float,
-#         met_value: float,
-#         units_selection: str,
-#         chart_selected: str,
-#         selected_model: str,
-# ):
-#     units = UnitSystem.IP.value if units_selection else UnitSystem.SI.value
-#     inputs = get_inputs(selected_model, form_content, units)
-#
-#     if ctx.triggered:
-#         triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
-#         if triggered_id == ElementsIDs.clo_input.value:
-#             inputs[ElementsIDs.clo_input.value] = float(clo_value)
-#         if triggered_id == ElementsIDs.met_input.value:
-#             inputs[ElementsIDs.met_input.value] = float(met_value)
-#
-#     inputs[ElementsIDs.UNIT_TOGGLE.value] = units
-#     inputs[ElementsIDs.MODEL_SELECTION.value] = selected_model
-#     inputs[ElementsIDs.chart_selected.value] = chart_selected
-#
-#     return inputs
-
 
 @callback(
     Output(ElementsIDs.INPUT_SECTION.value, "children"),

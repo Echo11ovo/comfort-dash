@@ -1,6 +1,6 @@
 import dash
 import dash_mantine_components as dmc
-from dash import html, callback, Output, Input, no_update, State, ctx
+from dash import html, callback, Output, Input, no_update, State, ctx, dcc
 
 from components.charts import t_rh_pmv, chart_selector
 from components.dropdowns import (
@@ -21,6 +21,30 @@ from utils.my_config_file import (
     ChartsInfo,
     MyStores,
 )
+
+from components.store_state import StoreState
+
+dash._dash_renderer._set_react_version('18.2.0')
+app = dash.Dash(__name__)
+
+PERSIST_IDS = [
+    # ElementsIDs.t_db_input.value,
+    # ElementsIDs.t_r_input.value,
+    # ElementsIDs.v_input.value,
+    # ElementsIDs.rh_input.value,
+    # ElementsIDs.met_input.value,
+    # ElementsIDs.clo_input.value,
+    "id-dbt-input",
+    "id-tr-input",
+    "id-v-input",
+    "id-rh-input",
+    "id-met-input",
+    "id-clo-input",
+]
+
+store_id = "input_environmental_personal"
+
+store_state = StoreState(PERSIST_IDS, store_type='local')
 
 dash.register_page(__name__, path=URLS.HOME.value)
 
@@ -62,6 +86,9 @@ layout = dmc.Stack(
                                 id=ElementsIDs.CHART_CONTAINER.value,
                             ),
                             dmc.Text(id=ElementsIDs.note_model.value),
+
+                            store_state.get_store_component(store_id),
+                            dcc.Location(id='url', refresh=False),
                         ],
                     ),
                     span={"base": 12, "sm": Dimensions.right_container_width.value},
@@ -73,40 +100,40 @@ layout = dmc.Stack(
 )
 
 
-@callback(
-    Output(MyStores.input_data.value, "data"),
-    Input(ElementsIDs.inputs_form.value, "n_clicks"),
-    Input(ElementsIDs.inputs_form.value, "children"),
-    Input(ElementsIDs.clo_input.value, "value"),
-    Input(ElementsIDs.met_input.value, "value"),
-    Input(ElementsIDs.UNIT_TOGGLE.value, "checked"),
-    Input(ElementsIDs.chart_selected.value, "value"),
-    State(ElementsIDs.MODEL_SELECTION.value, "value"),
-)
-def update_store_inputs(
-    form_clicks: int,
-    form_content: dict,
-    clo_value: float,
-    met_value: float,
-    units_selection: str,
-    chart_selected: str,
-    selected_model: str,
-):
-    units = UnitSystem.IP.value if units_selection else UnitSystem.SI.value
-    inputs = get_inputs(selected_model, form_content, units)
-
-    if ctx.triggered:
-        triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
-        if triggered_id == ElementsIDs.clo_input.value:
-            inputs[ElementsIDs.clo_input.value] = float(clo_value)
-        if triggered_id == ElementsIDs.met_input.value:
-            inputs[ElementsIDs.met_input.value] = float(met_value)
-
-    inputs[ElementsIDs.UNIT_TOGGLE.value] = units
-    inputs[ElementsIDs.MODEL_SELECTION.value] = selected_model
-    inputs[ElementsIDs.chart_selected.value] = chart_selected
-
-    return inputs
+# @callback(
+#     Output(MyStores.input_data.value, "data"),
+#     Input(ElementsIDs.inputs_form.value, "n_clicks"),
+#     Input(ElementsIDs.inputs_form.value, "children"),
+#     Input(ElementsIDs.clo_input.value, "value"),
+#     Input(ElementsIDs.met_input.value, "value"),
+#     Input(ElementsIDs.UNIT_TOGGLE.value, "checked"),
+#     Input(ElementsIDs.chart_selected.value, "value"),
+#     State(ElementsIDs.MODEL_SELECTION.value, "value"),
+# )
+# def update_store_inputs(
+#         form_clicks: int,
+#         form_content: dict,
+#         clo_value: float,
+#         met_value: float,
+#         units_selection: str,
+#         chart_selected: str,
+#         selected_model: str,
+# ):
+#     units = UnitSystem.IP.value if units_selection else UnitSystem.SI.value
+#     inputs = get_inputs(selected_model, form_content, units)
+#
+#     if ctx.triggered:
+#         triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
+#         if triggered_id == ElementsIDs.clo_input.value:
+#             inputs[ElementsIDs.clo_input.value] = float(clo_value)
+#         if triggered_id == ElementsIDs.met_input.value:
+#             inputs[ElementsIDs.met_input.value] = float(met_value)
+#
+#     inputs[ElementsIDs.UNIT_TOGGLE.value] = units
+#     inputs[ElementsIDs.MODEL_SELECTION.value] = selected_model
+#     inputs[ElementsIDs.chart_selected.value] = chart_selected
+#
+#     return inputs
 
 
 @callback(
@@ -151,13 +178,18 @@ def update_note_model(selected_model):
 @callback(
     Output(ElementsIDs.CHART_CONTAINER.value, "children"),
     Input(MyStores.input_data.value, "data"),
+    prevent_initial_call=True  # 1. 添加 prevent_initial_call=True
 )
-def update_chart(
-    inputs: int,
-):
-    selected_model: str = inputs[ElementsIDs.MODEL_SELECTION.value]
-    units: str = inputs[ElementsIDs.UNIT_TOGGLE.value]
-    chart_selected = inputs[ElementsIDs.chart_selected.value]
+def update_chart(inputs):
+    if inputs is None:
+        return no_update
+
+    selected_model: str = inputs.get(ElementsIDs.MODEL_SELECTION.value, None)
+    if not selected_model:
+        return no_update
+
+    units: str = inputs.get(ElementsIDs.UNIT_TOGGLE.value, UnitSystem.SI.value)
+    chart_selected = inputs.get(ElementsIDs.chart_selected.value, None)
 
     image = html.Div(
         [
@@ -197,6 +229,46 @@ def update_chart(
     Output(ElementsIDs.RESULTS_SECTION.value, "children"),
     Input(MyStores.input_data.value, "data"),
 )
-def update_outputs(inputs: dict):
+def update_outputs(inputs):
+    if inputs is None:
+        return no_update
 
     return display_results(inputs)
+
+@callback(
+    Output(store_id, "data", allow_duplicate=True),
+    [Input(id, "value") for id in PERSIST_IDS],
+    State(store_id, "data"),
+    prevent_initial_call=True,
+)
+def callback_update_local_storage(*args):
+    return store_state.update_local_storage(*args)
+
+
+@callback(
+    Output(store_id, "data", allow_duplicate=True),
+    [Input("url", "href")],
+    State(store_id, "data"),
+    prevent_initial_call=True,
+)
+def callback_update_store_from_url(url, store_data):
+    return store_state.update_store_from_url(url, store_data)
+
+@callback(
+    [Output(id, 'value', allow_duplicate=True) for id in PERSIST_IDS],
+    Input(store_id, 'modified_timestamp'),
+    State(store_id, 'data'),
+    prevent_initial_call=True
+)
+def callback_load_data(modified_timestamp, store_data):
+    return store_state.load_data(modified_timestamp, store_data)
+
+
+@callback(
+    Output('url', 'href'),
+    [Input(id, 'value') for id in PERSIST_IDS],
+    State(store_id, 'data'),
+    prevent_initial_call=True
+)
+def callback_update_url(*args):
+    return store_state.update_url(*args)

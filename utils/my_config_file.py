@@ -111,11 +111,32 @@ class ChartsInfo(BaseModel):
     note_chart: str = None
 
 
+class ComfortLevel(Enum):
+    COMFORTABLE = ("Comfortable", "Gray")
+    TOO_COOL = ("Too cool", "Blue")
+    TOO_WARM = ("Too warm", "Red")
+
+    def __init__(self, description: str, color: str):
+        self.description = description
+        self.color = color
+
+    def get_color(self):
+        return self.color
+
+    def __str__(self):
+        return self.description
+
+
 class Charts(Enum):
     t_rh: ChartsInfo = ChartsInfo(
         name="Temperature vs. Relative Humidity",
         id="id_t_rh_chart",
         note_chart="This chart represents only two variables, dry-bulb temperature and relative humidity. The PMV calculations are still based on all the psychrometric variables, but the visualization becomes easier to understand.",
+    )
+    adaptive_en: ChartsInfo = ChartsInfo(
+        name="Adaptive - EN-16798",
+        id="id_adaptive_en_chart",
+        note_chart="Method is applicable only for buildings without mechanical cooling systems and where there is easy access to operable windows and occupants may freely adapt their clothing to the indoor and/or outdoor thermal conditions. The criteria for the spaces are the following: (a) There is no mechanical cooling or heating system in operation; (b) Metabolic rates ranging from 1.0 to 1.3 met; (c) Occupants are allowed to freely adapt their clothing insulation.",
     )
     psychrometric: ChartsInfo = ChartsInfo(
         name="Psychrometric (air temperature)",
@@ -172,12 +193,10 @@ class UnitSystem(Enum):
     fahrenheit: str = "°F"
 
 
-# Todo transfer the Unit convert function to another file
 class UnitConverter:
     @staticmethod
     def celsius_to_fahrenheit(celsius):
-        # Todo add save 2 decimal place
-        return round(celsius * 9 / 5 + 32)
+        return round(celsius * 9 / 5 + 32, 2)
 
     @staticmethod
     def fahrenheit_to_celsius(fahrenheit):
@@ -432,7 +451,7 @@ class Models(Enum):
         charts=[
             # todo add the right charts
             Charts.psychrometric.value,
-            Charts.psychrometric_operative.value,
+            Charts.t_rh.value,
         ],
         inputs=[
             ModelInputsInfo(
@@ -529,7 +548,53 @@ class Models(Enum):
             ),
             ModelInputsInfo(
                 unit=UnitSystem.m_s.value,
-                min=0.0,
+                min=0.1,
+                max=2.0,
+                step=0.1,
+                value=0.1,
+                name="Air Speed",
+                id=ElementsIDs.v_input.value,
+            ),
+        ],
+    )
+    # Adaptive_EN
+    Adaptive_EN: ModelsInfo = ModelsInfo(
+        name="Adaptive - EN-16798",
+        description="Adaptive - EN-16798",
+        charts=[
+            Charts.adaptive_en.value,
+        ],
+        inputs=[
+            ModelInputsInfo(
+                unit=UnitSystem.celsius.value,
+                min=10.0,
+                max=40.0,
+                step=0.5,
+                value=25.0,
+                name="Air Temperature",
+                id=ElementsIDs.t_db_input.value,
+            ),
+            ModelInputsInfo(
+                unit=UnitSystem.celsius.value,
+                min=10.0,
+                max=40.0,
+                step=0.5,
+                value=25.0,
+                name="Mean Radiant Temperature",
+                id=ElementsIDs.t_r_input.value,
+            ),
+            ModelInputsInfo(
+                unit=UnitSystem.celsius.value,
+                min=10.0,
+                max=33.5,
+                step=0.5,
+                value=25.0,
+                name="Outdoor running mean outdoor temperature",
+                id=ElementsIDs.t_rm_input.value,
+            ),
+            ModelInputsInfo(
+                unit=UnitSystem.m_s.value,
+                min=0.1,
                 max=2.0,
                 step=0.1,
                 value=0.1,
@@ -555,8 +620,6 @@ class HumiditySelection(Enum):
 
 
 class MetabolicRateSelection(Enum):
-    sleeping: str = "Sleeping: 0.7"
-    reclining: str = "Reclining: 0.8"
     seated_quiet: str = "Seated, quite: 1.0"
     reading_seated: str = "Reading, seated: 1.0"
     writing: str = "Writing: 1.0"
